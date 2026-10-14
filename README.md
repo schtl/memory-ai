@@ -133,6 +133,12 @@ chat message to check the browser/WebSocket path end to end.
 
 ### Existing Apache, Nginx or Caddy proxy
 
+For the existing Apache server and domain **ai.sfs.at**, use
+[the Apache deployment guide](proxy/apache/README.md) and
+`compose.apache.yaml`. It includes certificate bootstrap, WebSocket forwarding
+and renewal without replacing existing cloud virtual hosts.
+
+
 If you already have a reverse proxy and certificate for this domain, keep
 `COMPOSE_FILE` unset and use the base stack. Forward the domain to
 `http://127.0.0.1:3000` if your proxy runs on the same host. Enable WebSocket

@@ -1,0 +1,6 @@
+# Use the existing Apache server on the Docker host for HTTPS.
+# Enable with COMPOSE_FILE=compose.yaml:compose.apache.yaml in .env.
+services:
+  openwebui:
+    environment:
+      WEBUI_URL: https://ai.sfs.at
