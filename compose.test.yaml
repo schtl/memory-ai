@@ -1,0 +1,13 @@
+# Standalone gateway regression tests. No .env or provider key required.
+name: memory-ai-tests
+services:
+  tests:
+    build:
+      context: .
+      dockerfile: tests/Dockerfile
+    environment:
+      MEMORY_API_KEY: test-memory-key
+      LITELLM_MASTER_KEY: test-upstream-key
+      LITELLM_URL: http://mock-provider
+      QDRANT_URL: http://unused
+    network_mode: none

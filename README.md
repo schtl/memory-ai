@@ -185,12 +185,52 @@ git push -u origin main
 The remote repository must already exist and your local SSH access must be
 configured. This repository uses the Apache License 2.0; see LICENSE.
 
+## Tests
+
+Run the isolated gateway regression suite in Docker:
+
+```bash
+docker compose -f compose.test.yaml run --build --rm tests
+```
+
+This command needs no `.env` file, provider key, production database or running
+application stack. Tests exercise the actual FastAPI HTTP endpoints and the real
+Qdrant client in in-memory mode. Embeddings are deterministic test vectors and
+LiteLLM responses use an HTTP mock transport. The test container has no network
+access at runtime; dependency downloads happen only during image build.
+
+The suite covers local memory CRUD, pagination, authentication, cross-user
+access and deletion prevention, retrieval relevance and deletion, disabled
+memory forwarding, history filtering, identity/metadata stripping, streaming,
+upstream errors and invalid requests. It does not evaluate the real embedding
+model's semantic quality or make billable cloud calls.
+
+Test the **already running** application stack separately:
+
+```bash
+docker compose up -d --build
+docker compose -f compose.yaml -f compose.smoke.yaml run --build --rm --no-deps smoke
+```
+
+The smoke test checks Open WebUI, LiteLLM and memory gateway health, then uses
+real CPU embeddings and Qdrant to save, list, isolate and delete a temporary
+memory. It uses random synthetic user IDs and cleans up its own entries. It
+never sends a normal chat request to the external LLM. PostgreSQL is not queried
+directly; full Open WebUI login/chat behavior and provider connectivity still
+need an end-to-end test with your configured provider.
+
+Both commands return a nonzero exit status on failure. View gateway logs with
+`docker compose logs --tail=100 memory` if the smoke test fails. A stopped stack
+must be started first; `--no-deps` prevents the smoke command from starting or
+reconfiguring production services by itself.
+
 ## Validation status
 
-YAML structure, source syntax and shell syntax have been checked. Gateway logic
-checks with fake infrastructure covered local commands, user separation,
-deletion authorization, identity checks, filtering of local management turns
-from cloud prompts, and optional memory forwarding.
+YAML structure, source syntax and shell syntax have been checked. The committed
+regression suite uses FastAPI, in-memory Qdrant, deterministic embeddings and
+mock HTTP responses. In the authoring environment, installing test dependencies
+was blocked by package access, so this suite and the Docker smoke test have not
+been executed there. Run the commands above on your Docker host.
 
 A full container startup, actual embedding download and real cloud API call
 have **not** been tested in the authoring environment because Docker and provider

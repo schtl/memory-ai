@@ -1,0 +1,15 @@
+# Merge with compose.yaml to test an existing stack without cloud calls.
+services:
+  smoke:
+    profiles: [test]
+    build:
+      context: .
+      dockerfile: tests/Dockerfile
+    command: [python, /app/tests/smoke.py]
+    environment:
+      MEMORY_API_KEY: ${MEMORY_API_KEY:?Run setup.sh first}
+      MEMORY_URL: http://memory:8000
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_URL: http://litellm:4000
+      OPENWEBUI_URL: http://openwebui:8080
+    networks: [backend]
