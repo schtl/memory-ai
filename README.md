@@ -275,7 +275,7 @@ and rebuild the memory service:
 
 ```bash
 git pull
-docker compose up -d --build --no-deps memory
+docker compose up -d --build
 docker compose logs --tail=100 -f memory
 ```
 
@@ -285,6 +285,11 @@ FastEmbed with 384 dimensions. It embeds plain text without E5 prefixes. Its
 vectors use the new `personal_memories_multilingual_minilm_v1` collection; the
 previous collection is preserved and not mixed with the new embedding space.
 Existing entries in the old collection are not automatically migrated.
+
+Start the complete stack so Qdrant and the other dependencies are running.
+Do not use `--no-deps` to start memory on a stopped stack: the hostname `qdrant`
+may then fail to resolve. If this still happens, check `docker compose ps -a`
+and `docker compose logs --tail=100 qdrant` for a stopped or failed service.
 
 Model registration and dimension are checked before downloads at startup.
 The Docker tests also check the real installed FastEmbed registry without model

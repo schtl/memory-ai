@@ -294,7 +294,7 @@ wird, den Gedächtnisdienst aktualisieren und neu bauen:
 
 ```bash
 git pull
-docker compose up -d --build --no-deps memory
+docker compose up -d --build
 docker compose logs --tail=100 -f memory
 ```
 
@@ -305,6 +305,12 @@ Seine Vektoren liegen in der neuen Collection
 `personal_memories_multilingual_minilm_v1`; die bisherige Collection bleibt
 erhalten und wird nicht mit dem neuen Embedding-Raum vermischt. Bestehende
 Einträge aus der alten Collection werden nicht automatisch migriert.
+
+Den vollständigen Stack starten, damit Qdrant und die anderen Abhängigkeiten
+laufen. Bei einem gestoppten Stack `memory` nicht mit `--no-deps` starten:
+Der Hostname `qdrant` kann dann nicht aufgelöst werden. Falls der Fehler bleibt,
+mit `docker compose ps -a` und `docker compose logs --tail=100 qdrant` nach
+einem gestoppten oder fehlgeschlagenen Dienst suchen.
 
 Beim Start werden Modellregistrierung und Dimension vor dem Download geprüft.
 Die Docker-Tests prüfen zusätzlich das echte Modellverzeichnis der installierten
