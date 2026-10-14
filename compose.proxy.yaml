@@ -1,0 +1,28 @@
+# Requires Docker Compose v2.24.4 or newer.
+# Enable with COMPOSE_FILE=compose.yaml:compose.proxy.yaml in .env.
+services:
+  openwebui:
+    ports: !reset []
+    environment:
+      WEBUI_URL: https://${PUBLIC_DOMAIN:?Set PUBLIC_DOMAIN in .env}
+    networks: [frontend]
+
+  proxy:
+    image: caddy:${CADDY_TAG:-2-alpine}
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:?Set PUBLIC_DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env}
+    volumes:
+      - ./proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/caddy/data:/data
+      - ./data/caddy/config:/config
+    depends_on: [openwebui]
+    networks: [frontend, outbound]
+
+networks:
+  frontend:
+    internal: true

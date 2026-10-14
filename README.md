@@ -55,7 +55,7 @@ OpenAI-compatible provider, use its API base URL and `openai/MODEL_NAME`.
 Native Anthropic or Gemini APIs require provider-specific changes to
 `litellm.yaml` as well. Initial embedding downloads may take several minutes.
 
-Only Open WebUI publishes a port, bound to `127.0.0.1:3000`. Connect from your
+In the base configuration, only Open WebUI publishes a port, bound to `127.0.0.1:3000`. Connect from your
 computer using an SSH tunnel:
 
 ```bash
@@ -66,6 +66,79 @@ Open <http://localhost:3000> and sign in using `ADMIN_EMAIL` and `ADMIN_PASSWORD
 Alternatively, configure your existing HTTPS reverse proxy to forward to
 `http://127.0.0.1:3000`, including WebSocket support. Sign-up is disabled;
 the administrator can create additional users. Select the `memory-ai` model.
+
+## Single-domain HTTPS reverse proxy
+
+The optional Caddy proxy is the only public entry point. It obtains and renews
+a certificate for the configured domain, redirects HTTP to HTTPS and proxies
+all application paths, including streaming and WebSockets, to Open WebUI.
+PostgreSQL, Qdrant, the memory gateway and LiteLLM require no public certificates.
+TLS terminates at Caddy; traffic to Open WebUI uses HTTP inside Docker.
+
+Requirements: Docker Compose **v2.24.4 or newer**, a public hostname pointing to
+this server, and inbound TCP ports 80 and 443 reaching Caddy through your
+firewall/NAT. Any configured AAAA record must also reach the server. These ports
+must be available; if another host proxy already uses them, use the existing
+proxy option below instead. Private-only domains require a different certificate
+strategy (an internal CA or a DNS challenge); this configuration uses public ACME.
+
+Add these entries to your existing `.env` (do not run setup again to replace it):
+
+```dotenv
+PUBLIC_DOMAIN=ai.example.org
+ACME_EMAIL=admin@example.org
+COMPOSE_FILE=compose.yaml:compose.proxy.yaml
+```
+
+Replace the hostname and email. Use a hostname only, without a scheme, port or
+path. `COMPOSE_FILE` enables the proxy overlay for subsequent ordinary Compose
+commands; the overlay removes the old host port 3000 from Open WebUI.
+
+```bash
+git pull
+docker compose version
+docker compose config --quiet
+docker compose up -d --build
+docker compose logs --tail=100 proxy
+```
+
+Open `https://ai.example.org`. Certificate issuance needs working DNS and port
+reachability. Certificate/private-key data persists under `data/caddy/` and is
+included in the existing data backup. Do not delete it on redeployment.
+
+Check the actual merged port configuration without starting containers:
+
+```bash
+python3 tests/check_proxy_config.py
+```
+
+This check requires Docker Compose and a configured `.env`; it verifies that
+only Caddy publishes ports and Open WebUI has an HTTPS public URL. Validate the
+Caddyfile using the official image without obtaining certificates:
+
+```bash
+docker compose run --rm --no-deps proxy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+curl --fail --show-error https://ai.example.org/health
+```
+
+For the existing stack smoke test with the proxy overlay included:
+
+```bash
+docker compose -f compose.yaml -f compose.proxy.yaml -f compose.smoke.yaml run --build --rm --no-deps smoke
+```
+
+The smoke test still exercises the internal services; the curl command checks
+the public HTTPS route and certificate validation. Log in and send a streaming
+chat message to check the browser/WebSocket path end to end.
+
+### Existing Apache, Nginx or Caddy proxy
+
+If you already have a reverse proxy and certificate for this domain, keep
+`COMPOSE_FILE` unset and use the base stack. Forward the domain to
+`http://127.0.0.1:3000` if your proxy runs on the same host. Enable WebSocket
+forwarding and response streaming in that proxy; reuse its existing certificate.
+Do not start the bundled Caddy on occupied ports. Set Open WebUI's `WEBUI_URL`
+to your external HTTPS URL in `compose.yaml` when using this option.
 
 ## Memory commands
 
@@ -151,7 +224,7 @@ configuration including `.env`, and restart:
 umask 077
 docker compose stop
 sudo tar -czf "../memory-ai-backup-$(date +%F-%H%M%S).tar.gz" \
-  data compose.yaml litellm.yaml .env postgres memory-service
+  data compose*.yaml litellm.yaml .env postgres memory-service proxy
 docker compose start
 ```
 
@@ -242,3 +315,6 @@ credentials were unavailable. Test with a disposable account before use.
 - <https://docs.openwebui.com/features/chat-conversations/memory/>
 - <https://docs.litellm.ai/docs/proxy/docker_quick_start>
 - <https://qdrant.tech/documentation/fastembed/>
+- <https://caddyserver.com/docs/automatic-https>
+- <https://caddyserver.com/docs/caddyfile/directives/reverse_proxy>
+- <https://docs.docker.com/reference/compose-file/merge/>
