@@ -1,16 +1,10 @@
-# Existing Apache server: ai.sfs.at
+# Apache reverse proxy: configurable domain
 
-Apache terminates HTTPS for `ai.sfs.at` and forwards the whole application to
-Open WebUI at `127.0.0.1:3000`. The Docker services do not need certificates.
-This configuration assumes Apache runs directly on the **same host** as Docker,
-Apache is version 2.4.47 or newer, and its TLS library supports TLS 1.3.
-For Apache in another container or on another machine, the upstream address
-must be changed; do not expose port 3000 publicly as a workaround.
+Apache on the Docker host terminates HTTPS and proxies to `127.0.0.1:3000`.
+Use Apache 2.4.47 or newer with TLS 1.3 support. Keep existing cloud virtual
+hosts enabled; this creates a separate named virtual host.
 
-Keep existing cloud virtual hosts enabled. Add this as a separate named virtual
-host; no existing cloud configuration or certificate needs to be replaced.
-
-## 1. Update the application configuration
+## Configure the domain once
 
 From the repository directory:
 
@@ -22,18 +16,53 @@ nano .env
 Set exactly one `COMPOSE_FILE` entry, replacing any Caddy setting:
 
 ```dotenv
+PUBLIC_DOMAIN=ai.sfs.at
 BIND_ADDRESS=127.0.0.1
 COMPOSE_FILE=compose.yaml:compose.apache.yaml
 ```
 
-If bundled Caddy was previously started, stop it before applying this setup:
+The Compose overlay reads `PUBLIC_DOMAIN` for Open WebUI's public HTTPS URL.
+Use a literal DNS hostname, without a scheme, port, path or wildcard. Variable
+expansion such as `${OTHER_DOMAIN}` is not supported by the generator.
+
+Generate both Apache configurations (Python 3, no third-party packages):
+
+```bash
+python3 scripts/generate_apache.py
+```
+
+Outputs:
+
+- `generated/apache/memory-ai-http.conf`: HTTP-only certificate bootstrap.
+- `generated/apache/memory-ai.conf`: HTTPS proxy, HTTP redirect and ACME renewal.
+
+The generator validates input and preserves Apache's `${APACHE_LOG_DIR}` variable.
+It overwrites its generated files when rerun, but never installs Apache files,
+issues certificates or reloads services. Generated files are excluded from Git.
+The checked-in `ai.sfs.at*.conf` files are static examples; use the generated
+files for deployment.
+
+For an existing Let's Encrypt certificate covering the chosen domain, optionally
+set its directory name, for example:
+
+```dotenv
+APACHE_CERTIFICATE_NAME=sfs.at
+```
+
+This produces certificate paths under `/etc/letsencrypt/live/sfs.at/`. Leave it
+empty to use the domain as the certificate name. The generator does not inspect
+the certificate: it must actually cover `PUBLIC_DOMAIN`. Certificates elsewhere
+require adapting the generated certificate paths before installation.
+
+## Start the application
+
+If bundled Caddy was previously started, stop it first:
 
 ```bash
 docker compose -f compose.yaml -f compose.proxy.yaml stop proxy
 ```
 
-That command is only needed if Caddy exists. Then start the base services with
-the Apache URL overlay enabled by `.env`:
+Skip that command if Caddy does not exist. Then:
 
 ```bash
 docker compose config --quiet
@@ -41,58 +70,55 @@ docker compose up -d --build
 curl --fail http://127.0.0.1:3000/health
 ```
 
-## 2. DNS and Apache modules
+This assumes Apache runs on the **same host** as Docker. If Apache is in a
+container or on another machine, `127.0.0.1` is not the Docker host; the upstream
+network configuration must be adapted.
 
-Point the DNS A record for `ai.sfs.at` to this server. Any AAAA record must also
-reach it. TCP ports 80 and 443 must reach Apache. Enable required modules:
+## Enable Apache and issue a certificate
+
+Point the domain's A record to this server. Any AAAA record must also reach it.
+TCP ports 80/443 must reach Apache. Confirm no duplicate virtual host exists for
+this domain with `sudo apache2ctl -S`.
 
 ```bash
-apache2ctl -v
 sudo a2enmod ssl proxy proxy_http headers rewrite setenvif
+sudo mkdir -p /var/www/memory-ai-acme/.well-known/acme-challenge
 ```
 
-Before creating a new site, check for an existing `ai.sfs.at` virtual host with
-`sudo apache2ctl -S`. Avoid duplicate named virtual hosts for this domain.
-
-## 3. Obtain a certificate if needed
-
-If you already have a valid certificate covering `ai.sfs.at`, skip issuance
-and update the two certificate paths in `ai.sfs.at.conf` to match it. An existing
-certificate for another hostname does not automatically cover this one;
-a wildcard for `*.sfs.at` would cover `ai.sfs.at`.
-
-Otherwise, install Certbot if it is not already available, enable the HTTP-only
-bootstrap site, and issue a certificate without stopping Apache:
+If an appropriate certificate already exists, skip bootstrap and issuance below
+and proceed to **Enable HTTPS**. Otherwise:
 
 ```bash
 sudo apt install certbot
-sudo mkdir -p /var/www/memory-ai-acme/.well-known/acme-challenge
-sudo install -m 644 proxy/apache/ai.sfs.at-http.conf /etc/apache2/sites-available/memory-ai-http.conf
+sudo install -m 644 generated/apache/memory-ai-http.conf /etc/apache2/sites-available/memory-ai-http.conf
 sudo a2ensite memory-ai-http
 sudo apache2ctl configtest
 sudo systemctl reload apache2
+```
+
+Reload only after `Syntax OK`. Issue the certificate without stopping Apache
+(replace `ai.sfs.at` with your configured domain if different):
+
+```bash
 sudo certbot certonly --webroot -w /var/www/memory-ai-acme -d ai.sfs.at --cert-name ai.sfs.at
 ```
 
-Certbot may ask for a contact email and acceptance of the CA terms. Enable the
-HTTPS file only after the certificate files exist; Apache refuses a configuration
-that references missing certificates.
+Certbot may ask for a contact email and CA terms acceptance. The generated TLS
+file must not be enabled before its certificate files exist.
 
-## 4. Enable HTTPS
-
-From the repository directory:
+## Enable HTTPS
 
 ```bash
-sudo install -m 644 proxy/apache/ai.sfs.at.conf /etc/apache2/sites-available/memory-ai.conf
+sudo install -m 644 generated/apache/memory-ai.conf /etc/apache2/sites-available/memory-ai.conf
 ```
 
-If you used the HTTP bootstrap above, disable that site:
+If the HTTP-only bootstrap site was enabled, disable it:
 
 ```bash
 sudo a2dissite memory-ai-http
 ```
 
-Then enable the complete site and validate before reloading:
+Then:
 
 ```bash
 sudo a2ensite memory-ai
@@ -101,15 +127,14 @@ sudo systemctl reload apache2
 curl --fail --show-error https://ai.sfs.at/health
 ```
 
-Reload only if the configuration test reports `Syntax OK`. Open
-<https://ai.sfs.at>, sign in and send a streaming chat message to check HTTP,
-SSE and WebSocket behavior end to end. Only the Apache virtual host needs the
-certificate; Open WebUI, LiteLLM, Qdrant and PostgreSQL stay internal.
+Reload only after `Syntax OK`. Open the configured HTTPS domain, sign in and send
+a streaming chat message. Only Apache needs the certificate; Docker services
+stay behind it. Existing cloud virtual hosts retain their own configuration.
 
-## 5. Certificate renewal
+## Renewal
 
-If you issued the webroot certificate above, check the existing Certbot renewal
-timer and add a deploy hook so Apache reloads renewed certificates:
+For the webroot certificate above, use the existing Certbot renewal scheduler
+and add a deploy hook if Apache is not already reloaded after renewal:
 
 ```bash
 systemctl status certbot.timer
@@ -124,16 +149,29 @@ sudo chmod 755 /etc/letsencrypt/renewal-hooks/deploy/memory-ai-reload-apache.sh
 sudo certbot renew --cert-name ai.sfs.at --dry-run
 ```
 
-If Certbot is already installed through a different method, use its existing
-scheduled renewal mechanism rather than adding a second one. If using an
-existing certificate, retain its existing renewal process.
+For Certbot installed through another method, retain its existing renewal
+mechanism. Reusing an existing certificate also means retaining its renewal
+process. Change the domain in the renewal check if you configured another one.
 
-## Validation limits
+## Change the domain later
 
-These files have not been loaded into your Apache instance in the authoring
-environment. The `configtest`, health check and browser check above are required
-on your server. No server, DNS or certificate changes are performed by merely
-committing these files to GitHub.
+Edit `PUBLIC_DOMAIN` in `.env`, regenerate, obtain a certificate for the new
+hostname (or configure a matching existing certificate), reinstall the generated
+HTTPS file, validate and reload Apache, then run `docker compose up -d`.
+DNS and certificate issuance are not automated by the generator. Reinstalling
+the generated virtual host replaces its previous hostname; existing certificate
+renewal entries are not removed automatically.
+
+## Tests
+
+```bash
+python3 -m unittest discover -s tests -p test_apache_generator.py -v
+```
+
+These dependency-free tests cover rendering, certificate paths, hostname and
+path validation, quoted settings, duplicate settings, regeneration and rejection
+without overwriting existing output. They also run as part of the Docker suite.
+Apache `configtest` and the HTTPS/browser checks must still be run on your server.
 
 References:
 

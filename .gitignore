@@ -223,3 +223,6 @@ __marimo__/
 data/
 *.tar.gz
 *.zip
+
+# Generated Apache deployment files
+generated/

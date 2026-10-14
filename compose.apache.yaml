@@ -3,4 +3,4 @@
 services:
   openwebui:
     environment:
-      WEBUI_URL: https://ai.sfs.at
+      WEBUI_URL: https://${PUBLIC_DOMAIN:?Set PUBLIC_DOMAIN in .env}

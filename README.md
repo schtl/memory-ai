@@ -133,7 +133,8 @@ chat message to check the browser/WebSocket path end to end.
 
 ### Existing Apache, Nginx or Caddy proxy
 
-For the existing Apache server and domain **ai.sfs.at**, use
+For the existing Apache server, configure `PUBLIC_DOMAIN=ai.sfs.at` in `.env`,
+run `python3 scripts/generate_apache.py`, and use
 [the Apache deployment guide](proxy/apache/README.md) and
 `compose.apache.yaml`. It includes certificate bootstrap, WebSocket forwarding
 and renewal without replacing existing cloud virtual hosts.
@@ -310,6 +311,9 @@ regression suite uses FastAPI, in-memory Qdrant, deterministic embeddings and
 mock HTTP responses. In the authoring environment, installing test dependencies
 was blocked by package access, so this suite and the Docker smoke test have not
 been executed there. Run the commands above on your Docker host.
+
+The nine dependency-free Apache generator tests have been executed and passed.
+They cover input validation, rendering, certificate paths and regeneration.
 
 A full container startup, actual embedding download and real cloud API call
 have **not** been tested in the authoring environment because Docker and provider
