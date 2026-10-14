@@ -40,7 +40,7 @@ def validate_hostname(value, key):
     # Accept literal ASCII DNS names only. Reject URLs, paths and config injection.
     value = value.lower()
     if not value or len(value) > 253 or '.' not in value:
-        raise ValueError(f'{key} must be a full DNS hostname, for example ai.sfs.at')
+        raise ValueError(f'{key} must be a full DNS hostname, for example ai.example.org')
     label = r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?'
     if not re.fullmatch(label + r'(?:\.' + label + r')+', value):
         raise ValueError(f'{key} must be a hostname without scheme, port, path or wildcard')

@@ -16,7 +16,7 @@ nano .env
 Set exactly one `COMPOSE_FILE` entry, replacing any Caddy setting:
 
 ```dotenv
-PUBLIC_DOMAIN=ai.sfs.at
+PUBLIC_DOMAIN=ai.example.org
 BIND_ADDRESS=127.0.0.1
 COMPOSE_FILE=compose.yaml:compose.apache.yaml
 ```
@@ -39,17 +39,17 @@ Outputs:
 The generator validates input and preserves Apache's `${APACHE_LOG_DIR}` variable.
 It overwrites its generated files when rerun, but never installs Apache files,
 issues certificates or reloads services. Generated files are excluded from Git.
-The checked-in `ai.sfs.at*.conf` files are static examples; use the generated
-files for deployment.
+Use the generated files for deployment; no domain-specific configuration is
+stored in the repository.
 
 For an existing Let's Encrypt certificate covering the chosen domain, optionally
 set its directory name, for example:
 
 ```dotenv
-APACHE_CERTIFICATE_NAME=sfs.at
+APACHE_CERTIFICATE_NAME=example.org
 ```
 
-This produces certificate paths under `/etc/letsencrypt/live/sfs.at/`. Leave it
+This produces certificate paths under `/etc/letsencrypt/live/example.org/`. Leave it
 empty to use the domain as the certificate name. The generator does not inspect
 the certificate: it must actually cover `PUBLIC_DOMAIN`. Certificates elsewhere
 require adapting the generated certificate paths before installation.
@@ -97,10 +97,10 @@ sudo systemctl reload apache2
 ```
 
 Reload only after `Syntax OK`. Issue the certificate without stopping Apache
-(replace `ai.sfs.at` with your configured domain if different):
+(replace `ai.example.org` with your configured domain if different):
 
 ```bash
-sudo certbot certonly --webroot -w /var/www/memory-ai-acme -d ai.sfs.at --cert-name ai.sfs.at
+sudo certbot certonly --webroot -w /var/www/memory-ai-acme -d ai.example.org --cert-name ai.example.org
 ```
 
 Certbot may ask for a contact email and CA terms acceptance. The generated TLS
@@ -124,7 +124,7 @@ Then:
 sudo a2ensite memory-ai
 sudo apache2ctl configtest
 sudo systemctl reload apache2
-curl --fail --show-error https://ai.sfs.at/health
+curl --fail --show-error https://ai.example.org/health
 ```
 
 Reload only after `Syntax OK`. Open the configured HTTPS domain, sign in and send
@@ -146,7 +146,7 @@ set -eu
 /usr/bin/systemctl reload apache2
 HOOK
 sudo chmod 755 /etc/letsencrypt/renewal-hooks/deploy/memory-ai-reload-apache.sh
-sudo certbot renew --cert-name ai.sfs.at --dry-run
+sudo certbot renew --cert-name ai.example.org --dry-run
 ```
 
 For Certbot installed through another method, retain its existing renewal

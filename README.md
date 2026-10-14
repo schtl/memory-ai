@@ -30,7 +30,7 @@ uses separate collections and its own local embedding model.
 ## Quick start
 
 ```bash
-git clone git@github.com:schtl/memory-ai.git
+git clone git@github.com:YOUR_ACCOUNT/memory-ai.git
 cd memory-ai
 bash setup.sh
 nano .env
@@ -133,7 +133,7 @@ chat message to check the browser/WebSocket path end to end.
 
 ### Existing Apache, Nginx or Caddy proxy
 
-For the existing Apache server, configure `PUBLIC_DOMAIN=ai.sfs.at` in `.env`,
+For the existing Apache server, configure `PUBLIC_DOMAIN=ai.example.org` in `.env`,
 run `python3 scripts/generate_apache.py`, and use
 [the Apache deployment guide](proxy/apache/README.md) and
 `compose.apache.yaml`. It includes certificate bootstrap, WebSocket forwarding
@@ -258,7 +258,7 @@ or API keys. `.gitignore` excludes these paths. To initialize a new repository:
 git init -b main
 git add .
 git commit -m "Add self-hosted memory AI stack"
-git remote add origin git@github.com:schtl/memory-ai.git
+git remote add origin git@github.com:YOUR_ACCOUNT/memory-ai.git
 git push -u origin main
 ```
 
