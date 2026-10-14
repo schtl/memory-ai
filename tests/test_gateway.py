@@ -23,6 +23,11 @@ class DeterministicEmbeddings:
     def __init__(self, **kwargs):
         pass
 
+    @classmethod
+    def list_supported_models(cls):
+        return [{'model': 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
+                 'dim': 384}]
+
     def embed(self, texts):
         for text in texts:
             result = np.zeros(384, dtype=np.float32)
@@ -201,3 +206,24 @@ def test_upstream_errors_are_sanitized(gateway):
 def test_invalid_requests_are_rejected(gateway, body):
     assert gateway.client.post('/v1/chat/completions', headers=headers(), json=body).status_code == 400
     assert not gateway.calls
+
+
+def test_startup_rejects_unsupported_embedding_model(gateway, monkeypatch):
+    import asyncio
+    monkeypatch.setenv('EMBEDDING_MODEL', 'unsupported/model')
+    async def start():
+        async with gateway.module.lifespan(gateway.module.app):
+            pass
+    with pytest.raises(ValueError, match='Unsupported FastEmbed model'):
+        asyncio.run(start())
+
+
+def test_startup_rejects_wrong_embedding_dimension(gateway, monkeypatch):
+    import asyncio
+    monkeypatch.setattr(DeterministicEmbeddings, 'list_supported_models',
+        classmethod(lambda cls: [{'model': gateway.module.DEFAULT_EMBEDDING_MODEL, 'dim': 768}]))
+    async def start():
+        async with gateway.module.lifespan(gateway.module.app):
+            pass
+    with pytest.raises(ValueError, match='must have 384 dimensions'):
+        asyncio.run(start())

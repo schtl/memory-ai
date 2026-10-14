@@ -13,7 +13,9 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastembed import TextEmbedding
 from qdrant_client import QdrantClient, models
 
-COLLECTION = 'personal_memories_e5_small_v1'
+DEFAULT_EMBEDDING_MODEL = 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'
+EMBEDDING_DIMENSION = 384
+COLLECTION = 'personal_memories_multilingual_minilm_v1'
 MODEL_NAME = 'memory-ai'
 API_KEY = os.environ['MEMORY_API_KEY']
 SEND_MEMORY = os.getenv('SEND_MEMORIES_TO_CLOUD', 'true').lower() == 'true'
@@ -57,15 +59,24 @@ def user_filter(user_id):
 
 
 def vector(text, query=False):
-    prefix = 'query: ' if query else 'passage: '
-    return next(app.state.embedder.embed([prefix + text])).tolist()
+    # This model embeds plain text; E5-specific prefixes must not be added.
+    return next(app.state.embedder.embed([text])).tolist()
 
 
 @asynccontextmanager
 async def lifespan(application):
+    model_name = os.getenv('EMBEDDING_MODEL', DEFAULT_EMBEDDING_MODEL)
+    registered = next((model for model in TextEmbedding.list_supported_models()
+                       if model['model'] == model_name), None)
+    if registered is None:
+        raise ValueError(f'Unsupported FastEmbed model: {model_name}. '
+                         'Check TextEmbedding.list_supported_models().')
+    if registered['dim'] != EMBEDDING_DIMENSION:
+        raise ValueError(f'Embedding model must have {EMBEDDING_DIMENSION} dimensions; '
+                         f"{model_name} has {registered['dim']}.")
     application.state.embedder = await asyncio.to_thread(
         TextEmbedding,
-        model_name=os.getenv('EMBEDDING_MODEL', 'intfloat/multilingual-e5-small'),
+        model_name=model_name,
         cache_dir=os.getenv('EMBEDDING_CACHE', '/cache/fastembed'),
         threads=2,
     )
@@ -75,7 +86,7 @@ async def lifespan(application):
         try:
             if not await asyncio.to_thread(qdrant.collection_exists, COLLECTION):
                 await asyncio.to_thread(qdrant.create_collection, COLLECTION,
-                    vectors_config=models.VectorParams(size=384, distance=models.Distance.COSINE))
+                    vectors_config=models.VectorParams(size=EMBEDDING_DIMENSION, distance=models.Distance.COSINE))
                 await asyncio.to_thread(qdrant.create_payload_index, COLLECTION,
                     field_name='user_id', field_schema=models.PayloadSchemaType.KEYWORD)
             break

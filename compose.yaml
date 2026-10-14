@@ -51,7 +51,7 @@ services:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
       LITELLM_URL: http://litellm:4000
       QDRANT_URL: http://qdrant:6333
-      EMBEDDING_MODEL: intfloat/multilingual-e5-small
+      EMBEDDING_MODEL: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
       HF_HOME: /cache/huggingface
       EMBEDDING_CACHE: /cache/fastembed
       TOP_K: '5'

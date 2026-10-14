@@ -268,6 +268,31 @@ git push -u origin main
 The remote repository must already exist and your local SSH access must be
 configured. This repository uses the Apache License 2.0; see LICENSE.
 
+## Embedding startup troubleshooting
+
+If startup reports that `intfloat/multilingual-e5-small` is unsupported, update
+and rebuild the memory service:
+
+```bash
+git pull
+docker compose up -d --build --no-deps memory
+docker compose logs --tail=100 -f memory
+```
+
+The memory model is now
+`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`, registered in
+FastEmbed with 384 dimensions. It embeds plain text without E5 prefixes. Its
+vectors use the new `personal_memories_multilingual_minilm_v1` collection; the
+previous collection is preserved and not mixed with the new embedding space.
+Existing entries in the old collection are not automatically migrated.
+
+Model registration and dimension are checked before downloads at startup.
+The Docker tests also check the real installed FastEmbed registry without model
+downloads; the previous HTTP tests used a mock embedder and missed this issue.
+The first successful startup still downloads the model, so the memory service
+needs outgoing internet access until its cache is populated. After it is healthy,
+start Open WebUI with `docker compose up -d openwebui` if it was waiting.
+
 ## Tests
 
 Run the isolated gateway regression suite in Docker:

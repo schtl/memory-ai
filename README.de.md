@@ -287,6 +287,34 @@ Das entfernte Repository muss bereits existieren und der lokale SSH-Zugriff
 muss eingerichtet sein. Dieses Repository verwendet die Apache License 2.0;
 siehe `LICENSE`.
 
+## Fehler beim Start des Embedding-Modells
+
+Wenn der Start meldet, dass `intfloat/multilingual-e5-small` nicht unterstützt
+wird, den Gedächtnisdienst aktualisieren und neu bauen:
+
+```bash
+git pull
+docker compose up -d --build --no-deps memory
+docker compose logs --tail=100 -f memory
+```
+
+Das Gedächtnis verwendet jetzt
+`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`, das in FastEmbed
+mit 384 Dimensionen registriert ist. Es verarbeitet reinen Text ohne E5-Präfixe.
+Seine Vektoren liegen in der neuen Collection
+`personal_memories_multilingual_minilm_v1`; die bisherige Collection bleibt
+erhalten und wird nicht mit dem neuen Embedding-Raum vermischt. Bestehende
+Einträge aus der alten Collection werden nicht automatisch migriert.
+
+Beim Start werden Modellregistrierung und Dimension vor dem Download geprüft.
+Die Docker-Tests prüfen zusätzlich das echte Modellverzeichnis der installierten
+FastEmbed-Version ohne Modell-Download. Die bisherigen HTTP-Tests verwendeten
+ein simuliertes Embedding-Modell und erkannten diesen Fehler deshalb nicht.
+Beim ersten erfolgreichen Start wird das Modell weiterhin heruntergeladen;
+der Gedächtnisdienst benötigt bis zum Befüllen seines Caches Internetzugang.
+Sobald er gesund ist, gegebenenfalls das wartende Open WebUI mit
+`docker compose up -d openwebui` starten.
+
 ## Tests
 
 Die isolierten Regressionstests für den Gedächtnisdienst in Docker ausführen:
