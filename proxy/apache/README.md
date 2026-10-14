@@ -1,5 +1,7 @@
 # Apache reverse proxy: configurable domain
 
+**English** | [Deutsch](README.de.md)
+
 Apache on the Docker host terminates HTTPS and proxies to `127.0.0.1:3000`.
 Use Apache 2.4.47 or newer with TLS 1.3 support. Keep existing cloud virtual
 hosts enabled; this creates a separate named virtual host.
@@ -172,6 +174,13 @@ These dependency-free tests cover rendering, certificate paths, hostname and
 path validation, quoted settings, duplicate settings, regeneration and rejection
 without overwriting existing output. They also run as part of the Docker suite.
 Apache `configtest` and the HTTPS/browser checks must still be run on your server.
+
+## Documentation maintenance
+
+Maintain this guide together with [its German version](README.de.md). Update
+installation, configuration and commands in both languages in the same commit.
+Code and identifiers remain English. Use neutral example domains and placeholders
+only; actual identifying information belongs solely in local configuration.
 
 References:
 

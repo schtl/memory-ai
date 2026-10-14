@@ -1,5 +1,7 @@
 # Memory AI
 
+**English** | [Deutsch](README.de.md)
+
 A self-hosted chat application with local long-term memory and an external LLM.
 No local generative language model is required.
 
@@ -137,11 +139,12 @@ For the existing Apache server, configure `PUBLIC_DOMAIN=ai.example.org` in `.en
 run `python3 scripts/generate_apache.py`, and use
 [the Apache deployment guide](proxy/apache/README.md) and
 `compose.apache.yaml`. It includes certificate bootstrap, WebSocket forwarding
-and renewal without replacing existing cloud virtual hosts.
+and renewal without replacing existing cloud virtual hosts. Set
+`COMPOSE_FILE=compose.yaml:compose.apache.yaml` for this option.
 
 
-If you already have a reverse proxy and certificate for this domain, keep
-`COMPOSE_FILE` unset and use the base stack. Forward the domain to
+For other existing reverse proxies, you can keep `COMPOSE_FILE` unset and use
+the base stack. Forward the domain to
 `http://127.0.0.1:3000` if your proxy runs on the same host. Enable WebSocket
 forwarding and response streaming in that proxy; reuse its existing certificate.
 Do not start the bundled Caddy on occupied ports. Set Open WebUI's `WEBUI_URL`
@@ -303,6 +306,15 @@ Both commands return a nonzero exit status on failure. View gateway logs with
 `docker compose logs --tail=100 memory` if the smoke test fails. A stopped stack
 must be started first; `--no-deps` prevents the smoke command from starting or
 reconfiguring production services by itself.
+
+## Documentation maintenance
+
+English and German are equivalent, jointly maintained versions: `README.md`
+and `README.de.md`, plus the corresponding Apache guides. Changes to behavior,
+configuration, commands, requirements and limitations must be reflected in both
+languages in the same commit. Filenames, variables, commands and code remain
+English. Examples use neutral placeholders only; real domains, account names,
+contact details and credentials do not belong in public documentation.
 
 ## Validation status
 
