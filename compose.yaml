@@ -1,0 +1,130 @@
+name: memory-ai
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run setup.sh first}
+      POSTGRES_DB: openwebui
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U ai -d openwebui']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [backend]
+
+  qdrant:
+    image: qdrant/qdrant:${QDRANT_TAG:-latest}
+    restart: unless-stopped
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+    networks: [backend]
+
+  litellm:
+    image: docker.litellm.ai/berriai/litellm:${LITELLM_TAG:-main-stable}
+    restart: unless-stopped
+    command: [--config, /app/config.yaml, --port, '4000']
+    environment:
+      DATABASE_URL: postgresql://ai:${POSTGRES_PASSWORD}@postgres:5432/litellm
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?Run setup.sh first}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:?Run setup.sh first}
+      CLOUD_MODEL: ${CLOUD_MODEL:?Set CLOUD_MODEL in .env}
+      CLOUD_API_BASE: ${CLOUD_API_BASE:?Set CLOUD_API_BASE in .env}
+      CLOUD_API_KEY: ${CLOUD_API_KEY:?Set CLOUD_API_KEY in .env}
+    volumes:
+      - ./litellm.yaml:/app/config.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [backend, outbound]
+
+  memory:
+    build: ./memory-service
+    restart: unless-stopped
+    environment:
+      MEMORY_API_KEY: ${MEMORY_API_KEY:?Run setup.sh first}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_URL: http://litellm:4000
+      QDRANT_URL: http://qdrant:6333
+      EMBEDDING_MODEL: intfloat/multilingual-e5-small
+      HF_HOME: /cache/huggingface
+      EMBEDDING_CACHE: /cache/fastembed
+      TOP_K: '5'
+      SCORE_THRESHOLD: '0.78'
+      SEND_MEMORIES_TO_CLOUD: ${SEND_MEMORIES_TO_CLOUD:-true}
+    volumes:
+      - ./data/embedding-cache:/cache
+    depends_on: [qdrant, litellm]
+    healthcheck:
+      test: [CMD, python, -c, 'import urllib.request; urllib.request.urlopen("http://localhost:8000/health")']
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 180s
+    # outbound is needed only for the initial embedding model download.
+    # Remove it after the first successful startup if desired.
+    networks: [backend, outbound]
+
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:${OPENWEBUI_TAG:-main}
+    restart: unless-stopped
+    ports:
+      - '${BIND_ADDRESS:-127.0.0.1}:3000:8080'
+    environment:
+      DATABASE_URL: postgresql://ai:${POSTGRES_PASSWORD}@postgres:5432/openwebui
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?Run setup.sh first}
+      ENABLE_PERSISTENT_CONFIG: 'false'
+      ENABLE_OPENAI_API: 'true'
+      OPENAI_API_BASE_URL: http://memory:8000/v1
+      OPENAI_API_BASE_URLS: http://memory:8000/v1
+      OPENAI_API_KEY: ${MEMORY_API_KEY}
+      OPENAI_API_KEYS: ${MEMORY_API_KEY}
+      ENABLE_FORWARD_USER_INFO_HEADERS: 'true'
+      ENABLE_OLLAMA_API: 'false'
+      ENABLE_SIGNUP: 'false'
+      WEBUI_ADMIN_EMAIL: ${ADMIN_EMAIL:?Set ADMIN_EMAIL in .env}
+      WEBUI_ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Run setup.sh first}
+      WEBUI_ADMIN_NAME: Administrator
+      DEFAULT_USER_ROLE: user
+      # The memory service manages personal memories.
+      ENABLE_MEMORIES: 'false'
+      ENABLE_MEMORY_SYSTEM_CONTEXT: 'false'
+      ENABLE_MEMORY_BACKGROUND_REVIEW: 'false'
+      ENABLE_DIRECT_CONNECTIONS: 'false'
+      ENABLE_OPENAI_API_PASSTHROUGH: 'false'
+      ENABLE_WEB_SEARCH: 'false'
+      ENABLE_VERSION_UPDATE_CHECK: 'false'
+      ENABLE_AUTOCOMPLETE_GENERATION: 'false'
+      ENABLE_TITLE_GENERATION: 'false'
+      ENABLE_TAGS_GENERATION: 'false'
+      ENABLE_FOLLOW_UP_GENERATION: 'false'
+      STORAGE_PROVIDER: local
+      VECTOR_DB: qdrant
+      QDRANT_URI: http://qdrant:6333
+      ENABLE_QDRANT_MULTITENANCY_MODE: 'true'
+      # Document embeddings also run locally.
+      RAG_EMBEDDING_ENGINE: ''
+      RAG_EMBEDDING_MODEL: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+      HF_HOME: /app/backend/data/cache/huggingface
+      DO_NOT_TRACK: 'true'
+      SCARF_NO_ANALYTICS: 'true'
+      ANONYMIZED_TELEMETRY: 'false'
+    volumes:
+      - ./data/openwebui:/app/backend/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      memory:
+        condition: service_healthy
+    # Internet access is required for the initial model download.
+    networks: [backend, outbound]
+
+networks:
+  backend:
+    internal: true
+  outbound: {}

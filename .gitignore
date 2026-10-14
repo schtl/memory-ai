@@ -218,3 +218,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Memory AI runtime data and backups
+data/
+*.tar.gz
+*.zip
